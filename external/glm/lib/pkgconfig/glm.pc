@@ -1,0 +1,7 @@
+prefix=/opt/homebrew/Cellar/glm/1.0.2
+includedir=${prefix}/include
+
+Name: GLM
+Description: OpenGL Mathematics
+Version: 1.0.2
+Cflags: -I${includedir}
