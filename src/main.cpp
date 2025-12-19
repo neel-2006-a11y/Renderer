@@ -16,7 +16,8 @@
 #include "MeshRenderer.h"
 #include "MeshCollider.h"
 #include "CubeCollider.h"
-#include "cube_collision.h"
+// #include "cube_collision.h"
+#include "OBBCollision.h"
 #include "InertiaTensor.h"
 #include "sweep_and_prune_bp.h"
 #include <imgui.h>
@@ -77,15 +78,14 @@ int main() {
     groundRB->start();
     app.sceneObjects.push_back(ground);
 
-
-    int num_boxes = 2500;
+    int num_boxes = 1000;
     for(int i = 0; i<num_boxes; i++){
         Object* boxObj = new Object();
         boxObj->name = "BoxObject_" + std::to_string(i);
         boxObj->transform->position = glm::vec3(
-            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/10.0f)) - 5.0f,
-            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/5.0f)) + 5.0f,
-            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/10.0f)) - 5.0f
+            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/50.0f))-25,
+            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/5.0f)) + 10.0f,
+            static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/50.0f))-25
         );
         // boxObj->transform->rotation = glm::quat(glm::vec3(
         //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f))),
@@ -97,52 +97,13 @@ int main() {
         float mass = 1.0f;
         glm::mat3 inertia = computeInertiaTensorOBB(boxCol->halfExtents, mass);
         Rigidbody* rb = boxObj->addComponent<Rigidbody>();
+        rb->velocity = glm::vec3(2.0,0,0);
         rb->mass = mass;
         rb->useGravity = true;
         rb->inertiaTensorLocal = inertia;
         rb->start();
         app.sceneObjects.push_back(boxObj);
     }
-
-    // Object* cubeObj = new Object();
-    // cubeObj->name = "CubeObject";
-    // cubeObj->transform->rotation = glm::quat(glm::vec3(glm::radians(40.0f),glm::radians(0.0f),glm::radians(0.0f)));
-    // // cubeObj->transform->rotation = glm::quat(glm::vec3(glm::radians(45.0f),glm::radians(0.0f),glm::radians(0.0f)));
-    // cubeObj->transform->position = glm::vec3(0.0f,10.0f,5.0f);
-    // cubeObj->addComponent<MeshRenderer>(&cube, shader);
-    // // cubeObj->addComponent<MeshCollider>(&cube, false);
-    // CubeCollider* cubeCol1 = cubeObj->addComponent<CubeCollider>(glm::vec3(1.0f));
-    // float mass1 = 1.0f;
-    // glm::mat3 inertia1 = computeInertiaTensorOBB(cubeCol1->halfExtents, mass1);
-    // Rigidbody* rb1 = cubeObj->addComponent<Rigidbody>();
-    // // rb1->isStatic = true;
-    // rb1->mass = mass1;
-    // rb1->useGravity = true;
-    // rb1->inertiaTensorLocal = inertia1;
-    // rb1->start();
-    // app.sceneObjects.push_back(cubeObj);
-
-    // Object* cubeObj2 = new Object();
-    // cubeObj2->name = "CubeObject2";
-    // cubeObj2->addComponent<MeshRenderer>(&cube, shader);
-    // // cubeObj->addComponent<MeshCollider>(&cube, false);
-    // CubeCollider* cubeCol2 = cubeObj2->addComponent<CubeCollider>(glm::vec3(1.0f));
-    // float mass2 = 1.0f;
-    // glm::mat3 inertia2 = computeInertiaTensorOBB(cubeCol2->halfExtents, mass2);
-    // Rigidbody* rb2 = cubeObj2->addComponent<Rigidbody>();
-    // rb2->mass = mass2;
-    // rb2->useGravity = true;
-    // rb2->inertiaTensorLocal = inertia2;
-    // rb2->start();
-    // // cubeObj2->transform->rotation = glm::quat(glm::vec3(glm::radians(45.0f),glm::radians(0.0f),0.0f));
-    // cubeObj2->transform->position = glm::vec3(0.0f,0.5f,-5.0f);
-    // // cubeObj2->transform->position = glm::vec3(0.3f,0.4f,-50.0f);
-    // float cubeScale = 1.0f;
-    // cubeObj2->transform->scale = glm::vec3(cubeScale,cubeScale,cubeScale);
-    // rb2->velocity = glm::vec3(0.0f,0.0f,5.0f);
-    
-    // app.sceneObjects.push_back(cubeObj2);
-
 
     Object* light1 = new Object();
     light1->name = "Light1";
@@ -213,7 +174,7 @@ int main() {
         aabb_sorter.computePairs(colliders);
 
         for(auto p : colliders){
-            resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5);
+            resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5, 1);
         }
         // std::vector<CubeCollider*> cubeColliders;
         // for(auto obj : app.sceneObjects){

@@ -1,30 +1,27 @@
-#pragma once
-#include <glm/glm.hpp>
-#include <cmath>
+#include "OBBCollision.h"
 
-// projection radius of OBB onto axis
-inline float obbProjectRadius(const glm::vec3 axis,
-                              const glm::vec3 axes[3],
-                              const glm::vec3 he)
-{
+// ===================== Math helpers =====================
+float obbProjectRadius(
+    const glm::vec3 axis,
+    const glm::vec3 axes[3],
+    const glm::vec3 he
+){
     return std::fabs(glm::dot(axis, axes[0])) * he.x +
            std::fabs(glm::dot(axis, axes[1])) * he.y +
            std::fabs(glm::dot(axis, axes[2])) * he.z;
 }
 
-inline void getOBBFace(
+void getOBBFace(
     const glm::vec3& C,
     const glm::vec3 axes[3],
     const glm::vec3& HE,
     int axisIndex,
     float axisSign,
     glm::vec3& outNormal,
-    glm::vec3 outVerts[4])
-{
+    glm::vec3 outVerts[4]
+){
     outNormal = axes[axisIndex] * axisSign;
-
     glm::vec3 center = C + outNormal * HE[axisIndex];
-
     glm::vec3 u = axes[(axisIndex + 1) % 3] * HE[(axisIndex + 1) % 3];
     glm::vec3 v = axes[(axisIndex + 2) % 3] * HE[(axisIndex + 2) % 3];
 
@@ -38,19 +35,16 @@ void clipPolygonAgainstPlane(
     const std::vector<glm::vec3>& poly,
     const glm::vec3& planeN,
     float planeD,
-    std::vector<glm::vec3>& out)
-{
+    std::vector<glm::vec3>& out
+){
     out.clear();
-
     for (size_t i = 0; i < poly.size(); i++) {
         const glm::vec3& A = poly[i];
         const glm::vec3& B = poly[(i + 1) % poly.size()];
-
         float da = glm::dot(planeN, A) - planeD;
         float db = glm::dot(planeN, B) - planeD;
 
         if (da >= 0) out.push_back(A);
-
         if ((da >= 0) != (db >= 0)) {
             float t = da / (da - db);
             out.push_back(A + t * (B - A));
@@ -58,11 +52,9 @@ void clipPolygonAgainstPlane(
     }
 }
 
+// =================== Edge Helpers ================
 
-// edge-edge 
-
-struct Edge{glm::vec3 a,b;};
-static void getOBBEdges(
+void getOBBEdges(
     const glm::vec3& C,
     const glm::vec3 axes[3],
     const glm::vec3& HE,
@@ -85,19 +77,7 @@ static void getOBBEdges(
     outEdges[3].a = C + h[u] - h[v] + h[w];; outEdges[3].b = C - h[u] - h[v] + h[w];
 }
 
-static void projectPointOntoAxis(
-    const glm::vec3& point,
-    const glm::vec3& axis,
-    float& outProjection
-){
-    outProjection = glm::dot(point, axis);
-}
-
-static float projectionOverlap(float minA, float maxA, float minB, float maxB){
-    return std::fmin(maxA, maxB) - std::fmax(minA, minB);
-}
-
-static void closestPtSegmentSegment(
+void closestPtSegmentSegment(
     const glm::vec3& p1, const glm::vec3& q1,
     const glm::vec3& p2, const glm::vec3& q2,
     glm::vec3& outC1, glm::vec3& outC2
@@ -132,52 +112,6 @@ static void closestPtSegmentSegment(
         return;
     }
 
-    // Check if segments are parallel
-    // Note: if segments are parallel, this axis is the SAT selected axis
-    // so we can optimize for that case
-    float crossLen = glm::length(glm::cross(d1, d2));
-    // std::cout << "Cross Length: " << crossLen << "\n";
-    if (crossLen < EPS) {
-        //debug
-        // std::cout << "Segments are parallel\n";
-        // Segments are parallel: project onto d1
-        glm::vec3 axis = glm::normalize(d1);
-        float p1s = glm::dot(p1, axis);
-        float q1s = glm::dot(q1, axis);
-        float p2s = glm::dot(p2, axis);
-        float q2s = glm::dot(q2, axis);
-
-        float s1 = glm::min(p1s, q1s);
-        float e1 = glm::max(p1s, q1s);
-
-        float s2 = glm::min(p2s, q2s);
-        float e2 = glm::max(p2s, q2s);
-
-        float overlapStart = glm::max(s1, s2);
-        float overlapEnd   = glm::min(e1, e2);
-
-        if (overlapStart <= overlapEnd) {
-            // They overlap: choose midpoint of overlap
-            float mid = 0.5f * (overlapStart + overlapEnd);
-
-            // Convert midpoint scalar back to points on each segment
-            auto pointOnSegment = [&](const glm::vec3& A, const glm::vec3& B, float midVal) {
-                float As = glm::dot(A, axis);
-                float Bs = glm::dot(B, axis);
-                float t = (midVal - As) / (Bs - As);
-                t = glm::clamp(t, 0.0f, 1.0f);
-                return A + t * (B - A);
-            };
-
-            outC1 = pointOnSegment(p1, q1, mid);
-            outC2 = pointOnSegment(p2, q2, mid);
-            return;
-        }
-
-        // No overlap → fall through to normal closest endpoint case
-    }
-
-    // --- Non-parallel case: original algorithm ---
     float b = glm::dot(d1, d2);
     float c = glm::dot(d1, r);
     float f = glm::dot(d2, r);
@@ -203,13 +137,136 @@ static void closestPtSegmentSegment(
     outC2 = p2 + t * d2;
 }
 
+static void projectPointOntoAxis(
+    const glm::vec3& point,
+    const glm::vec3& axis,
+    float& outProjection
+){
+    outProjection = glm::dot(point, axis);
+}
+
+
+// ====================== Manifold Helpers ===========
+
+bool isPointUnique(std::vector<glm::vec3>& verts, glm::vec3& p, float eps){
+    for(auto q:verts){
+        if(glm::dot(p-q,p-q) < eps){
+            return false;
+        }
+    }
+    return true;
+} 
+
+PlaneBasis buildPlaneBasis(const glm::vec3& n){
+    glm::vec3 t = (std::abs(n.x) > 0.9f)
+        ? glm::vec3(0,1,0)
+        : glm::vec3(1,0,0);
+
+    PlaneBasis b;
+    b.u = glm::normalize(glm::cross(n,t));
+    b.v = glm::cross(n,b.u);
+    return b;
+}
+
+glm::vec2 projectToPlane(
+    const glm::vec3& p,
+    const glm::vec3& origin,
+    const PlaneBasis& b
+){
+    glm::vec3 d = p - origin;
+    return{
+        glm::dot(d,b.u),
+        glm::dot(d,b.v)
+    };
+}
+
+void reduceManifold(
+    const std::vector<glm::vec3>& inPts,
+    const glm::vec3& normal,
+    float penetration,
+    std::vector<ContactPoint>& out
+){
+    out.clear();
+    if(inPts.empty()) return;
+
+    // 1) Find deepest point
+    int deepest = 0;
+    float minProj = FLT_MAX;
+    for (int i = 0; i < (int)inPts.size(); i++) {
+        float d = glm::dot(inPts[i], normal);
+        if (d < minProj) {
+            minProj = d;
+            deepest = i;
+        }
+    }
+
+    glm::vec3 origin = inPts[deepest];
+    PlaneBasis basis = buildPlaneBasis(normal);
+
+    // project to 2d
+    std::vector<glm::vec2> pts2D;
+
+    for(auto& p : inPts)
+        pts2D.push_back(projectToPlane(p,origin,basis));
+
+    // 2) pick the furthest from deepest
+
+    int i1 = deepest;
+    int i2 = i1;
+    float maxDist = 0.0f;
+    
+    for (int i = 0; i < (int)pts2D.size(); i++) {
+        float d = glm::dot((pts2D[i] - pts2D[i1]),(pts2D[i] - pts2D[i1]));
+        if (d > maxDist) {
+            maxDist = d;
+            i2 = i;
+        }
+    }
+
+    // 3. pick points that maimize triangle area
+    int i3 = i1, i4 = i1;
+    float maxArea1 = 0.0f, maxArea2 = 0.0f;
+
+    glm::vec2 a = pts2D[i1];
+    glm::vec2 b = pts2D[i2];
+
+    for (int i = 0; i < (int)pts2D.size(); i++) {
+        float area = std::abs(glm::cross(
+            glm::vec3(b - a, 0),
+            glm::vec3(pts2D[i] - a, 0)
+        ).z);
+
+        if (area > maxArea1) {
+            maxArea2 = maxArea1; i4 = i3;
+            maxArea1 = area;     i3 = i;
+        } else if (area > maxArea2) {
+            maxArea2 = area;     i4 = i;
+        }
+    }
+
+    // Collect unique indices
+    std::vector<int> indices = { i1, i2, i3, i4 };
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+
+    for (int idx : indices) {
+        out.push_back({
+            inPts[idx],
+            normal,
+            penetration
+        });
+        if (out.size() == 4) break;
+    }
+}
+
+// ===================== Collision Coroutines ===========
 
 bool computeOBBEdgeEdgeContact(
     const glm::vec3& centerA, const glm::vec3 axesA[3], const glm::vec3& HEA,
     const glm::vec3& centerB, const glm::vec3 axesB[3], const glm::vec3& HEB,
     int axisA, int axisB,
     const glm::vec3& penetrationAxis,
-    glm::vec3& outPoint,
+    ContactManifold& outManifold,
     glm::vec3& outNormal,
     float& outDepth
 ){
@@ -255,29 +312,12 @@ bool computeOBBEdgeEdgeContact(
         pA, pB
     );
     // debug
-    // std::cout << "Best Edge A: " << edgesA[bestAidx].a.x << "," << edgesA[bestAidx].a.y << "," << edgesA[bestAidx].a.z << " to "
-    //           << edgesA[bestAidx].b.x << "," << edgesA[bestAidx].b.y << "," << edgesA[bestAidx].b.z << "\n";
-    // std::cout << "Best Edge B: " << edgesB[bestBidx].a.x << "," << edgesB[bestBidx].a.y << "," << edgesB[bestBidx].a.z << " to "
-    //           << edgesB[bestBidx].b.x << "," << edgesB[bestBidx].b.y << "," << edgesB[bestBidx].b.z << "\n";
-    // std::cout << "Edge-Edge contact points: A(" << pA.x << "," << pA.y << "," << pA.z << ") B(" << pB.x << "," << pB.y << "," << pB.z << ")\n";
-    outPoint = 0.5f * (pA + pB);
+
     outNormal = penetrationAxis; // SAT axis is correct normal
     outDepth = bestOverlap;
-
+    outManifold.points.push_back({0.5f * (pA + pB), outNormal, outDepth, 0.0f});
     return true;
 }
-
-struct OBBContact {
-    bool hit = false;
-    glm::vec3 normal; // box1 to box2
-    float penetration;
-    glm::vec3 contactPoint; // approximate contact point (world space)
-};
-
-struct Face{
-    glm::vec3 normal;
-    glm::vec3 verts[4];
-};
 
 void getIncidentFaces(
     const glm::vec3& C,
@@ -301,18 +341,6 @@ void getIncidentFaces(
         }
     }
 }
-
-glm::vec3 computeAveragePoint(const std::vector<glm::vec3>& points) {
-    glm::vec3 avg(0.0f);
-    for (const glm::vec3& p : points) {
-        avg += p;
-    }
-    if (!points.empty()) {
-        avg /= static_cast<float>(points.size());
-    }
-    return avg;
-}
-
 
 inline OBBContact testOBBvsOBB(
     const glm::vec3& C1, const glm::vec3 A1[3], const glm::vec3& HE1,
@@ -394,7 +422,7 @@ inline OBBContact testOBBvsOBB(
             (bestAxisID - 6) / 3,
             (bestAxisID - 6) % 3,
             bestAxis * (float)bestAxisSign,
-            result.contactPoint,
+            result.manifold,
             result.normal,
             result.penetration
         );
@@ -437,20 +465,29 @@ inline OBBContact testOBBvsOBB(
             poly = tmp;
         }
         // collect remaining vertices
-        for(const auto& v : poly){
+        for(auto& v : poly){
             collectedVerts.push_back(v);
         }
-        // average final clipped polygon vertices to get contact point
-        result.contactPoint = computeAveragePoint(collectedVerts);
     }
+    // unique vertices
+    std::vector<glm::vec3> uniqueVerts;
+    for(glm::vec3& v : collectedVerts) {
+        if(isPointUnique(uniqueVerts, v)){
+            uniqueVerts.push_back(v);
+        }
+    }
+
+    // contact manifold building
+    reduceManifold(uniqueVerts, result.normal, result.penetration, result.manifold.points);
     return result;
 }
 
+//================= Resolve Collision ==================
 void resolveCubeCubeCollision(
     CubeCollider& boxA,
     CubeCollider& boxB,
     float restitution,
-    bool debug=false
+    int solveIterations
 ){
     glm::vec3 C1, C2;
     glm::vec3 A1[3], A2[3];
@@ -460,72 +497,130 @@ void resolveCubeCubeCollision(
     boxA.getAABBandOBB(aabb1,C1,HE1,A1);
     boxB.getAABBandOBB(aabb2,C2,HE2,A2);
     if(!aabb1.intersects(aabb2)) return;
-
+    
     OBBContact contact = testOBBvsOBB(C1, A1, HE1, C2, A2, HE2);
     if(!contact.hit){return;}
-    if(debug){
-        std::cout << "OBB Collision detected!//////////////////////\n";
-        std::cout << "collision position: (" << contact.contactPoint.x << ", " << contact.contactPoint.y << ", " << contact.contactPoint.z << ")\n";
-    }
-
-    // Contact point (midpoint)
-    glm::vec3 contactPoint = contact.contactPoint;
-
-    glm::vec3 ra = contactPoint - boxA.owner->transform->position;
-    glm::vec3 rb = contactPoint - boxB.owner->transform->position;
-
+    
     Rigidbody* rbA = boxA.owner->getComponent<Rigidbody>();
     Rigidbody* rbB = boxB.owner->getComponent<Rigidbody>();
-    
-    if(rbA && rbB){
+    if(!rbA || !rbB) return;
+    // ======= position correction =====
+    glm::vec3 correction = contact.normal * contact.penetration;
+    float extent = 0.7;
+    if(!rbA->isStatic)
+        rbA->transform->position -= correction*extent;
+    if(!rbB->isStatic)
+        rbB->transform->position += correction*extent;
+    for(int iter = 0; iter < solveIterations; iter++){
+        for(ContactPoint& c : contact.manifold.points){
 
-        // Simple positional correction
-        glm::vec3 correction = contact.normal * contact.penetration * 0.7f;
+            glm::vec3 n = c.normal;
+            // ======= impulse response ====
+            // ======= normal impulse ======
+            glm::vec3 ra = c.position - boxA.owner->transform->position;
+            glm::vec3 rb = c.position - boxB.owner->transform->position;
 
-        // std::cout << "Applying positional correction: (" << correction.x << ", " << correction.y << ", " << correction.z << ")\n";  
-        if(!rbA->isStatic)
-            boxA.owner->transform->position -= correction;
-        if(!rbB->isStatic)
-            boxB.owner->transform->position += correction;
-        
-        ////////////////////////////////////////////////////////////
-        // Velocities at contact
-        glm::vec3 angularVelocityA = rbA->getInvInertiaTensorWorld() * rbA->angularMomentum;
-        glm::vec3 angularVelocityB = rbB->getInvInertiaTensorWorld() * rbB->angularMomentum;
-        glm::vec3 vA = rbA->velocity + glm::cross(angularVelocityA, ra);
-        glm::vec3 vB = rbB->velocity + glm::cross(angularVelocityB, rb);
+            glm::vec3 wA = rbA->getInvInertiaTensorWorld() * rbA->angularMomentum;
+            glm::vec3 wB = rbB->getInvInertiaTensorWorld() * rbB->angularMomentum;
 
-        glm::vec3 vRel = vB - vA;
-        if(debug){
-            std::cout << "Contact normal: (" << contact.normal.x << ", " << contact.normal.y << ", " << contact.normal.z << ")\n";
-            std::cout << "Contact position: (" << contactPoint.x << ", " << contactPoint.y << ", " << contactPoint.z << ")\n";
-            std::cout << "Relative velocity: (" << vRel.x << ", " << vRel.y << ", " << vRel.z << ")\n";
+            glm::vec3 vA = rbA->velocity + glm::cross(wA, ra);
+            glm::vec3 vB = rbB->velocity + glm::cross(wB, rb);
+
+            glm::vec3 vRel = vB-vA;
+            std::cout << "vRel^2: " << glm::dot(vRel,vRel) << "\n";
+            float vRelN = glm::dot(vRel,n);
+
+            float epsV = 0.01f;
+            if(vRelN>epsV){ // seperating
+                continue;
+            }
+
+            float e = (iter == 0) ? restitution : 0.0f;
+
+            glm::vec3 rnA = glm::cross(ra,n);
+            glm::vec3 rnB = glm::cross(rb,n);
+
+            float angularTerm = 
+                glm::dot(
+                        n,
+                        glm::cross(rbA->getInvInertiaTensorWorld() * rnA, ra) +
+                        glm::cross(rbB->getInvInertiaTensorWorld() * rnB, rb)
+                    );
+            float denom = rbA->invMass + rbB->invMass + angularTerm;
+            if(denom < 1e-6f) continue;
+
+            float j = -(1.0f + e) * vRelN / denom;
+            std::cout << "vRelN: " << vRelN << "\n";
+            std::cout << "denom: " << denom << "\n";
+
+            // Accumulate & clamp
+            float oldImpulse = c.normalImpulse;
+            c.normalImpulse = glm::max(oldImpulse + j, 0.0f);
+            float deltaJ = c.normalImpulse - oldImpulse;
+
+            glm::vec3 impulseN = deltaJ * n;
+
+            if(!rbA->isStatic)
+                rbA->applyImpulse(-impulseN, c.position);
+            if(!rbB->isStatic)
+                rbB->applyImpulse(impulseN, c.position);
         }
-        float vRelN = glm::dot(vRel, contact.normal);
-        if (vRelN > 0.0f) return;
+    }
 
-        glm::vec3 rnA = glm::cross(ra, contact.normal);
-        glm::vec3 rnB = glm::cross(rb, contact.normal);
+    // ======= friction =====
+    for(ContactPoint& c: contact.manifold.points){
+        glm::vec3 n = c.normal;
 
-        float angularTerm = glm::dot(
-            contact.normal,
-            glm::cross(rbA->getInvInertiaTensorWorld() * rnA, ra) +
-            glm::cross(rbB->getInvInertiaTensorWorld() * rnB, rb)
-        );
+        glm::vec3 ra = c.position - boxA.owner->transform->position;
+        glm::vec3 rb = c.position - boxB.owner->transform->position;
 
-        float denom = (rbA->invMass + rbB->invMass) + angularTerm;
+        glm::vec3 wA = rbA->getInvInertiaTensorWorld() * rbA->angularMomentum;
+        glm::vec3 wB = rbB->getInvInertiaTensorWorld() * rbB->angularMomentum;
 
-        float j = -(1.0f + restitution) * vRelN / denom;
+        glm::vec3 vA = rbA->velocity + glm::cross(wA, ra);
+        glm::vec3 vB = rbB->velocity + glm::cross(wB, rb);
 
-        glm::vec3 impulseN = j * contact.normal;
-        if(debug)
-            std::cout << "Normal impulse: (" << impulseN.x << ", " << impulseN.y << ", " << impulseN.z << ")\n";
+        glm::vec3 vRel = vB-vA;
 
-        // Apply normal impulse
-        // std::cout << "velocity after impulse:\n";
-        rbA->applyImpulse(-impulseN, contact.contactPoint);
-        // std::cout << "A: (" << rbA->velocity.x << ", " << rbA->velocity.y << ", " << rbA->velocity.z << ") ";
-        rbB->applyImpulse( impulseN, contact.contactPoint);
-        // std::cout << "B: (" << rbB->velocity.x << ", " << rbB->velocity.y << ", " << rbB->velocity.z << ") \n";
+        float vRelN = glm::dot(vRel,n);
+
+        glm::vec3 vRelT = vRel - n * vRelN;
+        float vtLen2 = glm::dot(vRelT,vRelT);
+        float EPS = 1e-8f;
+        if(vtLen2>EPS){
+            glm::vec3 t = vRelT / sqrt(vtLen2); // stable normalize
+
+            // --- recompute angular terms for tangent ---
+            glm::vec3 rtA = glm::cross(ra, t);
+            glm::vec3 rtB = glm::cross(rb, t);
+
+            float tangentDenom =
+                rbA->invMass + rbB->invMass +
+                glm::dot(
+                    t,
+                    glm::cross(rbA->getInvInertiaTensorWorld() * rtA, ra) +
+                    glm::cross(rbB->getInvInertiaTensorWorld() * rtB, rb)
+                );
+
+            if (tangentDenom > 1e-6f)
+            {
+                float jt = -glm::dot(vRel, t) / tangentDenom;
+
+                float frictionCoeff = 0.1f;
+                float maxFriction = frictionCoeff * c.normalImpulse;
+
+                float oldT = c.tangentImpulse;
+                c.tangentImpulse = glm::clamp(oldT + jt, -maxFriction, maxFriction);
+                float deltaT = c.tangentImpulse - oldT;
+
+                glm::vec3 impulse = deltaT * t;
+
+                if (!rbA->isStatic)
+                    rbA->applyImpulse(-impulse, c.position);
+                if (!rbB->isStatic)
+                    rbB->applyImpulse( impulse, c.position);
+            }
+        }
     }
 }
+

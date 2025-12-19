@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "Object.h"
 #include "transform.h"
+#include <iostream>
 
 class Rigidbody : public Component {
 public:
@@ -21,6 +22,9 @@ public:
     bool isStatic = false;
     bool useGravity = false;
     glm::vec3 gravity = glm::vec3(0.0f, -9.81f, 0.0f);
+
+    glm::vec3 forceAccum = glm::vec3(0.0);
+    glm::vec3 torqueAccum = glm::vec3(0.0);
 
     Rigidbody() {}
     Rigidbody(const Rigidbody& rb){
@@ -44,15 +48,25 @@ public:
 
     void update(float dt) override {
         if (isStatic) return;
-        if (useGravity) {
-            velocity += gravity * dt;
-        }
+        // if (useGravity) {
+        //     velocity += gravity * dt;
+        // }
+        // apply force
+        // std::cout << "forceAccum: (" << forceAccum.x << ", " << forceAccum.y << ", " << forceAccum.z << ")\n";
+        velocity += forceAccum * invMass * dt;
+        // std::cout << "velocity: (" << velocity.x << ", " << velocity.y << ", " << velocity.z << ")\n";
+        // apply torque
+        angularMomentum += torqueAccum * dt;
+
         transform->position += velocity * dt;
 
         glm::vec3 angularVelocity = getInvInertiaTensorWorld() * angularMomentum;
         glm::quat deltaRotation = glm::quat(0, angularVelocity * 0.5f * dt);
         transform->rotation += deltaRotation * transform->rotation;
         transform->rotation = glm::normalize(transform->rotation);
+
+        forceAccum = gravity * mass;
+        torqueAccum = glm::vec3(0);
     }
 
 
@@ -69,6 +83,13 @@ public:
         angularMomentum += deltaAngularMomentum;
     }
 
+    void applyForce(const glm::vec3& force){
+        forceAccum += force;
+    }
+
+    void applyTorque(const glm::vec3& torque){
+        torqueAccum += torque;
+    }
     glm::mat3 getInvInertiaTensorWorld() const {
         glm::mat3 R = glm::mat3_cast(transform->rotation);
         return R * invInertiaTensorLocal * glm::transpose(R);

@@ -74,5 +74,5 @@ void main() {
     
     vec3 finalcolor = result*color;
     vec3 finalcolor_reduced = floor(finalcolor*float(colorBands))/float(colorBands);
-    FragColor = vec4(finalcolor_reduced,1.0);
+    FragColor = vec4(finalcolor_reduced,0.0);
 }

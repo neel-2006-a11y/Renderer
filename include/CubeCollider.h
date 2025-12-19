@@ -1,3 +1,5 @@
+#pragma once
+
 #include "transform.h"
 #include "AABB.h"
 #include "Collider.h"
