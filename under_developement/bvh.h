@@ -5,7 +5,6 @@
 #include <limits>
 #include "mesh.h"
 #include "transform.h"
-#include "model.h"
 #include "AABB.h"
 
 struct BVHTriangle {

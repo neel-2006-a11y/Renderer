@@ -1,35 +1,38 @@
 #include "mesh_common_shapes.h"
 #include "shader.h"
-#include "draw.h"
-#include "SDL2/SDL.h"
-#include "glad/glad.h"
-#include <iostream>
 #include "init.h"
 #include "transform.h"
 #include "input.h"
 #include "texture.h"
-#include "model.h"
-#include "bvh.h"
-#include "collision.h"
-#include "bvh_debug.h"
 #include "rigidbody.h"
 #include "MeshRenderer.h"
-#include "MeshCollider.h"
 #include "CubeCollider.h"
-// #include "cube_collision.h"
+#include "pointLight.h"
 #include "OBBCollision.h"
 #include "InertiaTensor.h"
 #include "sweep_and_prune_bp.h"
+#include "ModelData.h"
+#include "GPUModel.h"
+#include "ModelHandle.h"
+#include "AssetManager.h"
+#include "Renderer.h"
+#include "CameraController.h"
+
+
 #include <imgui.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_opengl3.h>
+#include "SDL2/SDL.h"
+#include "glad/glad.h"
+#include <iostream>
 
 void vec3out(glm::vec3 a){
     std::cout << "(" << a.x << ", " << a.y << ", " << a.z << ")";
 }
 int main() {
-    App app;
-    Camera camera;
+    App& app = App::instance();
+    AssetManager& assetManager = AssetManager::instance();
+    Renderer renderer;
 
     if(!init(app)){
         std::cerr << "unable to initialize\n";
@@ -37,38 +40,25 @@ int main() {
 
     // shaders
     Shader* shader = new Shader("../src/shaders/vertex.glsl","../src/shaders/fragment.glsl");
-    Shader* bvhShader = new Shader("../src/shaders/bvh_debug.vert","../src/shaders/bvh_debug.frag");
-    initBVHDebug();
 
     // models loading
-    Model cube;
-    cube.meshes.push_back(makeCube(1.0f));
-    cube.name = "Cube";
-
-    for(auto & mesh : cube.meshes){
-        mesh.uploadToGPU();
-    }
-
+    ModelHandle cubeHandle;
+    cubeHandle.assetID = "builtin:cube"; 
 
     // camera setup
-    app.relativeMouseMode = true;
-    camera.position = glm::vec3(0.0f, 2.0f, 10.0f);
-    camera.front = glm::normalize(glm::vec3(0.0f, -0.2f, -1.0f));
-    camera.up = glm::vec3(0.0f, 1.0f, 0.0f);
-    camera.right = glm::normalize(glm::cross(camera.front, camera.up));
-    camera.worldUp = camera.up;
-    camera.yaw = -90.0f;
-    camera.pitch = -10.0f;
-    camera.movementSpeed = 5.0f;
-    camera.mouseSensitivity = 0.1f;
+    Object* camObj = new Object();
+    camObj->name = "camObj";
+    camObj->addComponent<Camera>();
+    camObj->addComponent<CameraController>();
+    app.sceneObjects.push_back(camObj);
 
-
+    
     // scene setup
     Object* ground = new Object();
     ground->name = "Ground";
     ground->transform->position = glm::vec3(0.0f,-5.0f,0.0f);
     ground->transform->scale = glm::vec3(50.0f,1.0f,50.0f);
-    ground->addComponent<MeshRenderer>(&cube, shader);
+    ground->addComponent<MeshRenderer>(cubeHandle, shader);
     ground->addComponent<CubeCollider>(glm::vec3(1.0f,1.0f,1.0f));
     Rigidbody* groundRB = ground->addComponent<Rigidbody>();
     groundRB->isStatic = true;
@@ -77,6 +67,7 @@ int main() {
     groundRB->inertiaTensorLocal = groundInertia;
     groundRB->start();
     app.sceneObjects.push_back(ground);
+
 
     int num_boxes = 1000;
     for(int i = 0; i<num_boxes; i++){
@@ -92,7 +83,7 @@ int main() {
         //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f))),
         //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f)))
         // ));
-        boxObj->addComponent<MeshRenderer>(&cube, shader);
+        boxObj->addComponent<MeshRenderer>(cubeHandle, shader);
         CubeCollider* boxCol = boxObj->addComponent<CubeCollider>(glm::vec3(1.0f));
         float mass = 1.0f;
         glm::mat3 inertia = computeInertiaTensorOBB(boxCol->halfExtents, mass);
@@ -117,7 +108,7 @@ int main() {
     shader->use();
     int toonBands = 64;
     int colorBands = 64;
-    float ambientLightIntensity = 1.0f;
+    float ambientLightIntensity = 10.0f;
     bool useBlinn = true;
     float shininess = 10.0f;
     shader->setInt("toonBands", toonBands);
@@ -146,7 +137,11 @@ int main() {
         }
     }
     aabb_sorter.update();
-    // main loop
+
+    // std::cout << "FLAG1\n";
+
+
+    // ===== main loop =====
     while (app.running) {
         // Calculate delta time
         time = (float)SDL_GetTicks() / 1000.0f;
@@ -163,51 +158,71 @@ int main() {
         ImGui::End();
         drawEditorUI(app);
 
-        // Handle input
-        handleInput(camera, app);
-
         // collision detection and response
-
-
         aabb_sorter.update();
         std::vector<std::pair<Collider*, Collider*>> colliders;
         aabb_sorter.computePairs(colliders);
 
+        // std::cout << "FLAG2\n";
         for(auto p : colliders){
             resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5, 1);
         }
-        // std::vector<CubeCollider*> cubeColliders;
-        // for(auto obj : app.sceneObjects){
-        //     if(auto cubeCol = obj->getComponent<CubeCollider>()){
-        //         cubeColliders.push_back(cubeCol);
-        //     }
-        // }
-        // for(size_t i=0;i<cubeColliders.size();i++){
-        //     for(size_t j=i+1;j<cubeColliders.size();j++){
-        //         resolveCubeCubeCollision(*cubeColliders[i], *cubeColliders[j], 0.0f, false);
-        //     }
-        // }
 
-        // for(size_t j=1;j<cubeColliders.size();j++){
-        //     resolveCubeCubeCollision(*cubeColliders[0], *cubeColliders[j], 0.5f, false);
-        // }
+        // get active camera
+        Camera* activeCamera = nullptr;
+        for(auto& obj : app.sceneObjects){
+            activeCamera = obj->getComponent<Camera>();
+            if(activeCamera != nullptr){
+                break;
+            }
+        }
+        if(!activeCamera){
+            std::cerr << "no active camera\n";
+            return 0;
+        }
 
-
+        // handle input 
+        handleInput(app);
+        // std::cout << app.running << "\n";
         // Rendering
+
+        // ===== per-frame clear =====
+        glEnable(GL_DEPTH_TEST);
+        glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
         uploadLights(shader, app);
-        drawSetup(shader, camera, app);
+        
+
+        // std::cout << "FLAG3\n";
+        for(auto& obj : app.sceneObjects){
+            if(auto mr = obj->getComponent<MeshRenderer>()){
+                mr->shader->use();
+                ModelData* modelData = assetManager.getModel(mr->model.assetID);
+                GPUModel* gpuModel = renderer.getGPUModel(modelData);
+                glm::mat4 view = activeCamera->getView();
+                glm::mat4 proj = activeCamera->getProjection();
+                glm::mat4 model = mr->owner->transform->getMatrix();
+                mr->shader->setMat4("view", &view[0][0]);
+                mr->shader->setMat4("projection", &proj[0][0]);
+                mr->shader->setMat4("model", &model[0][0]);
+                renderer.drawModel(gpuModel);
+            }
+        }
+
+        // std::cout << "FLAG4\n";
         for(auto& obj : app.sceneObjects){
             obj->update(deltaTime);
         }
-
+        // std::cout << "FLAG5\n";
         // Render ImGui UI
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+        // std::cout << "FLAG6\n";
         SDL_GL_SwapWindow(app.window);
+        // std::cout << "FLAG7\n";
     }
 
-    cleanupBVHDebug();
     delete shader;
     shader = nullptr;
     for(auto o : app.sceneObjects)delete o;

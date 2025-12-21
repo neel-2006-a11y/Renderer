@@ -16,4 +16,16 @@ public:
         glm::mat4 S = glm::scale(glm::mat4(1), scale);
         return T * R * S;
     }
+
+    glm::vec3 forward() const {
+        return rotation * glm::vec3(0,0,-1);
+    }
+
+    glm::vec3 up() const {
+        return rotation * glm::vec3(0,1,0);
+    }
+
+    glm::vec3 right() const {
+        return rotation * glm::vec3(1,0,0);
+    }
 };

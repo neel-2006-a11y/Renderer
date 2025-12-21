@@ -1,9 +1,15 @@
 #include "app.h"
-#include "mesh.h"
 #include "pointLight.h"
 #include "Component.h"
+#include <glm/glm.hpp>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <imgui.h>
 
+App& App::instance(){
+    static App inst;
+    return inst;
+}
 void drawEditorUI(App& app) {
     ImGui::Begin("Scene Editor");
 
@@ -60,4 +66,9 @@ void uploadLights(Shader* shader, App& app) {
         shader->setFloat(base + ".linear", light.linear);
         shader->setFloat(base + ".quadratic", light.quadratic);
     }
+}
+
+void handleResize(App& app) {
+    SDL_GetWindowSize(app.window, &app.width, & app.height);
+    glViewport(0,0,app.width,app.height);
 }

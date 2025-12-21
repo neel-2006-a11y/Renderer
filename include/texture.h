@@ -11,4 +11,8 @@ struct Texture {
     std::string path;
 };
 
+struct GPUTexture{
+    unsigned int id = 0;
+};
+
 unsigned int TextureFromFile(const std::string& path);

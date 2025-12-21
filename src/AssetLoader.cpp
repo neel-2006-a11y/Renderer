@@ -1,11 +1,17 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
-#include "mesh.h"
+#include "MeshData.h"
+#include "AssetLoader.h"
+#include "mesh_common_shapes.h"
 #include <iostream>
 
-std::vector<Mesh> loadModel(const std::string& path) {
-    std::vector<Mesh> meshes;
+AssetLoader& AssetLoader::instance(){
+    static AssetLoader al;
+    return al;
+}
+ModelData* AssetLoader::loadModelFromFile(const std::string& path) {
+    ModelData result;
 
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path,
@@ -16,7 +22,7 @@ std::vector<Mesh> loadModel(const std::string& path) {
 
     if (!scene || !scene->mRootNode || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) {
         std::cerr << "Error loading model: " << importer.GetErrorString() << std::endl;
-        return meshes;
+        return &result;
     }
 
     std::function<void(aiNode*, const aiScene*)> processNode;
@@ -25,7 +31,7 @@ std::vector<Mesh> loadModel(const std::string& path) {
         for (unsigned int i = 0; i < node->mNumMeshes; i++) {
             aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-            Mesh myMesh;
+            MeshData myMesh;
 
             for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
                 Vertex vertex;
@@ -41,11 +47,11 @@ std::vector<Mesh> loadModel(const std::string& path) {
                     glm::vec3(0.0f);
 
                 if (mesh->mTextureCoords[0]) {
-                    vertex.texCoord = glm::vec2(
+                    vertex.uv = glm::vec2(
                         mesh->mTextureCoords[0][v].x,
                         mesh->mTextureCoords[0][v].y);
                 } else {
-                    vertex.texCoord = glm::vec2(0.0f);
+                    vertex.uv = glm::vec2(0.0f);
                 }
 
                 myMesh.vertices.push_back(vertex);
@@ -58,7 +64,7 @@ std::vector<Mesh> loadModel(const std::string& path) {
                 }
             }
 
-            meshes.push_back(myMesh);
+            result.meshes.push_back(myMesh);
         }
 
         // Process all children recursively
@@ -69,5 +75,14 @@ std::vector<Mesh> loadModel(const std::string& path) {
 
     processNode(scene->mRootNode, scene);
 
-    return meshes;
+    return &result;
+}
+
+ModelData* AssetLoader::loadBuiltin(const std::string& assetID){
+    if(assetID == "builtin:cube"){
+        ModelData* m = new ModelData();
+        m->meshes.push_back(makeCube());
+        return m;
+    }
+    assert(false && "Unknown builtin meshs");
 }

@@ -311,7 +311,6 @@ bool computeOBBEdgeEdgeContact(
         edgesB[bestBidx].a, edgesB[bestBidx].b,
         pA, pB
     );
-    // debug
 
     outNormal = penetrationAxis; // SAT axis is correct normal
     outDepth = bestOverlap;
@@ -527,7 +526,7 @@ void resolveCubeCubeCollision(
             glm::vec3 vB = rbB->velocity + glm::cross(wB, rb);
 
             glm::vec3 vRel = vB-vA;
-            std::cout << "vRel^2: " << glm::dot(vRel,vRel) << "\n";
+            // std::cout << "vRel^2: " << glm::dot(vRel,vRel) << "\n";
             float vRelN = glm::dot(vRel,n);
 
             float epsV = 0.01f;
@@ -550,8 +549,8 @@ void resolveCubeCubeCollision(
             if(denom < 1e-6f) continue;
 
             float j = -(1.0f + e) * vRelN / denom;
-            std::cout << "vRelN: " << vRelN << "\n";
-            std::cout << "denom: " << denom << "\n";
+            // std::cout << "vRelN: " << vRelN << "\n";
+            // std::cout << "denom: " << denom << "\n";
 
             // Accumulate & clamp
             float oldImpulse = c.normalImpulse;

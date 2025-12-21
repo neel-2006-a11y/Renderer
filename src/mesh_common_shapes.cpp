@@ -2,8 +2,8 @@
 #include <cmath>
 
 // Cube generator
-Mesh makeCube(float size) {
-    Mesh mesh;
+MeshData makeCube(float size) {
+    MeshData mesh;
     float h = size / 2.0f;
 
     glm::vec3 positions[] = {
@@ -50,7 +50,7 @@ Mesh makeCube(float size) {
             v.position = positions[f.v[i]];
             v.normal = f.n;
             v.color = f.c;
-            v.texCoord = uvs[i];
+            v.uv = uvs[i];
             mesh.vertices.push_back(v);
         }
     }
@@ -68,8 +68,8 @@ Mesh makeCube(float size) {
 }
 
 // Sphere generator
-Mesh makeSphere(float radius, unsigned int sectors, unsigned int stacks) {
-    Mesh mesh;
+MeshData makeSphere(float radius, unsigned int sectors, unsigned int stacks) {
+    MeshData mesh;
     const float PI = 3.14159265359f;
 
     for (unsigned int i = 0; i <= stacks; ++i) {
@@ -94,7 +94,7 @@ Mesh makeSphere(float radius, unsigned int sectors, unsigned int stacks) {
             v.position = pos;
             v.normal = norm;
             v.color = glm::vec3(1.0f); // white
-            v.texCoord = uv;
+            v.uv = uv;
             mesh.vertices.push_back(v);
         }
     }

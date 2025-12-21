@@ -1,38 +1,24 @@
 #pragma once
+#include "Component.h"
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
-enum Camera_Movement {
-    FORWARD,
-    BACKWARD,
-    LEFT,
-    RIGHT
-};
-
-class Camera {
+class Camera : public Component {
 public:
-    glm::vec3 position;
-    glm::vec3 front;
-    glm::vec3 up;
-    glm::vec3 right;
-    glm::vec3 worldUp;
+    float fovY = 60.0f;          // degrees
+    float nearPlane = 0.1f;
+    float farPlane  = 1000.0f;
 
-    float yaw;
-    float pitch;
-    float movementSpeed;
-    float mouseSensitivity;
+    bool orthographic = false;
+    float orthoHeight = 10.0f;
 
-    float deltaTime;
-    float lastFrame;
+    // Cached
+    mutable glm::mat4 view{1.0f};
+    mutable glm::mat4 projection{1.0f};
 
-    Camera(glm::vec3 startPos = glm::vec3(0.0f, 0.0f, 3.0f),
-           glm::vec3 upVec = glm::vec3(0.0f, 1.0f, 0.0f),
-           float startYaw = -90.0f,
-           float startPitch = 0.0f);
+    mutable bool viewDirty = true;
+    mutable bool projDirty = true;
 
-    glm::mat4 getViewMatrix() const;
-    void processKeyboard(Camera_Movement direction);
-    void processMouseMovement(float xOffset, float yOffset);
-    void updateCameraVectors();
-    void updateDeltaTime();
+    glm::mat4 getView() const;
+    glm::mat4 getProjection() const;
+    glm::mat4 getVP() const;
 };

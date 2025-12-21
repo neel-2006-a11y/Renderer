@@ -1,59 +1,59 @@
 #include "camera.h"
+#include "Object.h"
+#include "transform.h"
+#include "app.h"
+
 #include <glm/gtc/matrix_transform.hpp>
-#include <SDL2/SDL.h>
-#include <cmath>
+#include <glm/gtc/quaternion.hpp>
 
-Camera::Camera(glm::vec3 startPos, glm::vec3 upVec, float startYaw, float startPitch)
-    : position(startPos), worldUp(upVec), yaw(startYaw), pitch(startPitch),
-      movementSpeed(2.5f), mouseSensitivity(0.1f), deltaTime(0.0f), lastFrame(0.0f)
-{
-    updateCameraVectors();
+glm::mat4 Camera::getView() const {
+    if (!viewDirty)
+        return view;
+
+    // World transform of camera
+    const Transform* t = owner->transform;
+
+    glm::vec3 position = t->position;
+    glm::quat rotation = t->rotation;
+
+    // Camera looks down -Z in OpenGL
+    glm::vec3 forward = rotation * glm::vec3(0, 0, -1);
+    glm::vec3 up      = rotation * glm::vec3(0, 1,  0);
+
+    view = glm::lookAt(position, position + forward, up);
+    viewDirty = false;
+    return view;
 }
 
-void Camera::updateDeltaTime() {
-    float currentFrame = static_cast<float>(SDL_GetTicks()) / 1000.0f;
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
+glm::mat4 Camera::getProjection() const {
+    if (!projDirty)
+        return projection;
+
+    App app = App::instance();
+    float aspect = float(app.width)/float(app.height);
+
+    if (orthographic) {
+        float h = orthoHeight;
+        float w = h * aspect;
+        projection = glm::ortho(
+            -w, w,
+            -h, h,
+            nearPlane,
+            farPlane
+        );
+    } else {
+        projection = glm::perspective(
+            glm::radians(fovY),
+            aspect,
+            nearPlane,
+            farPlane
+        );
+    }
+
+    projDirty = false;
+    return projection;
 }
 
-glm::mat4 Camera::getViewMatrix() const {
-    return glm::lookAt(position, position + front, up);
-}
-
-void Camera::processKeyboard(Camera_Movement direction) {
-    float velocity = movementSpeed * deltaTime;
-    if (direction == FORWARD)
-        position += front * velocity;
-    if (direction == BACKWARD)
-        position -= front * velocity;
-    if (direction == LEFT)
-        position -= right * velocity;
-    if (direction == RIGHT)
-        position += right * velocity;
-}
-
-void Camera::processMouseMovement(float xOffset, float yOffset) {
-    xOffset *= mouseSensitivity;
-    yOffset *= mouseSensitivity;
-
-    yaw += xOffset;
-    pitch += yOffset;
-
-    if (pitch > 89.0f)
-        pitch = 89.0f;
-    if (pitch < -89.0f)
-        pitch = -89.0f;
-
-    updateCameraVectors();
-}
-
-void Camera::updateCameraVectors() {
-    glm::vec3 f;
-    f.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    f.y = sin(glm::radians(pitch));
-    f.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front = glm::normalize(f);
-
-    right = glm::normalize(glm::cross(front, worldUp));
-    up = glm::normalize(glm::cross(right, front));
+glm::mat4 Camera::getVP() const {
+    return getProjection() * getView();
 }

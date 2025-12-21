@@ -1,7 +1,6 @@
 #pragma once
 #include "Component.h"
 #include "Object.h"
-#include "model.h"
 #include "bvh.h"
 #include "transform.h"
 
