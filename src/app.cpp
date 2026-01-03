@@ -1,15 +1,19 @@
 #include "app.h"
 #include "pointLight.h"
 #include "Component.h"
+#include "camera.h"
+
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <iostream>
 
 App& App::instance(){
     static App inst;
     return inst;
 }
+
 void drawEditorUI(App& app) {
     ImGui::Begin("Scene Editor");
 
@@ -33,7 +37,10 @@ void drawEditorUI(App& app) {
         ImGui::Separator();
         ImGui::Text("Transform");
         ImGui::DragFloat3("Position", &object->transform->position[0], 0.1f);
-        ImGui::DragFloat3("Rotation", &object->transform->rotation[0], 0.1f);
+
+        glm::vec3 euler = glm::degrees(glm::eulerAngles(object->transform->rotation));
+        ImGui::DragFloat3("Rotation", &euler[0], 0.1f);
+        object->transform->rotation = glm::quat(glm::radians(euler));
         ImGui::DragFloat3("Scale", &object->transform->scale[0], 0.1f);
     }
 
@@ -71,4 +78,31 @@ void uploadLights(Shader* shader, App& app) {
 void handleResize(App& app) {
     SDL_GetWindowSize(app.window, &app.width, & app.height);
     glViewport(0,0,app.width,app.height);
+    for(auto obj:app.sceneObjects){
+        if(auto cam = obj->getComponent<Camera>()){
+            cam->projDirty = true;
+        }
+    }
+}
+
+void uploadDirectionalLight(Shader* shader, DirectionalLight* light, ShadowMap* shadowMap){
+    shader->use();
+    shader->setVec3("dirLight.direction", light->getDirection());
+    shader->setVec3("dirLight.color", light->color);
+    shader->setFloat("dirLight.intensity", light->intensity);
+    shader->setBool("useDirectionalLight", true);
+    
+    shader->setInt("shadowMap",1);
+
+    glm::mat4 lightVP = light->lightVP;
+    // for(int i = 0; i<4; i++){
+    //     for(int j = 0; j<4; j++){
+    //         std::cout << lightVP[i][j] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+    // std::cout << std::endl;
+    shader->setMat4("lightVP", &lightVP[0][0]);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, shadowMap->depthTexture);
 }

@@ -9,8 +9,6 @@ public:
     float mouseSensitivity = 0.002f;
 
     float yaw = -3.14159/2.0f;
-
-
     float pitch = 0.0f;
 
     void start() override;

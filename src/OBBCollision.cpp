@@ -567,57 +567,97 @@ void resolveCubeCubeCollision(
     }
 
     // ======= friction =====
-    for(ContactPoint& c: contact.manifold.points){
-        glm::vec3 n = c.normal;
+    for(int iter = 0; iter < solveIterations; iter++){
+        for(ContactPoint& c: contact.manifold.points){
+            glm::vec3 n = c.normal;
 
-        glm::vec3 ra = c.position - boxA.owner->transform->position;
-        glm::vec3 rb = c.position - boxB.owner->transform->position;
+            glm::vec3 ra = c.position - boxA.owner->transform->position;
+            glm::vec3 rb = c.position - boxB.owner->transform->position;
 
-        glm::vec3 wA = rbA->getInvInertiaTensorWorld() * rbA->angularMomentum;
-        glm::vec3 wB = rbB->getInvInertiaTensorWorld() * rbB->angularMomentum;
+            glm::vec3 wA = rbA->getInvInertiaTensorWorld() * rbA->angularMomentum;
+            glm::vec3 wB = rbB->getInvInertiaTensorWorld() * rbB->angularMomentum;
 
-        glm::vec3 vA = rbA->velocity + glm::cross(wA, ra);
-        glm::vec3 vB = rbB->velocity + glm::cross(wB, rb);
+            glm::vec3 vA = rbA->velocity + glm::cross(wA, ra);
+            glm::vec3 vB = rbB->velocity + glm::cross(wB, rb);
 
-        glm::vec3 vRel = vB-vA;
+            glm::vec3 vRel = vB-vA;
 
-        float vRelN = glm::dot(vRel,n);
+            float vRelN = glm::dot(vRel,n);
 
-        glm::vec3 vRelT = vRel - n * vRelN;
-        float vtLen2 = glm::dot(vRelT,vRelT);
-        float EPS = 1e-8f;
-        if(vtLen2>EPS){
-            glm::vec3 t = vRelT / sqrt(vtLen2); // stable normalize
+            glm::vec3 vRelT = vRel - n * vRelN;
+            float vtLen2 = glm::dot(vRelT,vRelT);
+            float EPS = 1e-8f;
+            // float EPS = 0.0f;
+            if(vtLen2>EPS){
+                glm::vec3 t = vRelT / sqrt(vtLen2); // stable normalize
 
-            // --- recompute angular terms for tangent ---
-            glm::vec3 rtA = glm::cross(ra, t);
-            glm::vec3 rtB = glm::cross(rb, t);
+                // --- recompute angular terms for tangent ---
+                glm::vec3 rtA = glm::cross(ra, t);
+                glm::vec3 rtB = glm::cross(rb, t);
 
-            float tangentDenom =
-                rbA->invMass + rbB->invMass +
-                glm::dot(
-                    t,
-                    glm::cross(rbA->getInvInertiaTensorWorld() * rtA, ra) +
-                    glm::cross(rbB->getInvInertiaTensorWorld() * rtB, rb)
-                );
+                float tangentDenom =
+                    rbA->invMass + rbB->invMass +
+                    glm::dot(
+                        t,
+                        glm::cross(rbA->getInvInertiaTensorWorld() * rtA, ra) +
+                        glm::cross(rbB->getInvInertiaTensorWorld() * rtB, rb)
+                    );
 
-            if (tangentDenom > 1e-6f)
-            {
-                float jt = -glm::dot(vRel, t) / tangentDenom;
+                if (tangentDenom > 1e-6f)
+                {
+                    float jt = -glm::dot(vRel, t) / tangentDenom;
 
-                float frictionCoeff = 0.1f;
-                float maxFriction = frictionCoeff * c.normalImpulse;
+                    float frictionCoeff = 0.1f;
+                    float maxFriction = frictionCoeff * c.normalImpulse;
 
-                float oldT = c.tangentImpulse;
-                c.tangentImpulse = glm::clamp(oldT + jt, -maxFriction, maxFriction);
-                float deltaT = c.tangentImpulse - oldT;
+                    float oldT = c.tangentImpulse;
+                    c.tangentImpulse = glm::clamp(oldT + jt, -maxFriction, maxFriction);
+                    float deltaT = c.tangentImpulse - oldT;
 
-                glm::vec3 impulse = deltaT * t;
+                    glm::vec3 impulse = deltaT * t;
 
-                if (!rbA->isStatic)
-                    rbA->applyImpulse(-impulse, c.position);
-                if (!rbB->isStatic)
-                    rbB->applyImpulse( impulse, c.position);
+                    if (!rbA->isStatic)
+                        rbA->applyImpulse(-impulse, c.position);
+                    if (!rbB->isStatic)
+                        rbB->applyImpulse( impulse, c.position);
+                }
+            } else {
+                // ===== static friction stabilization =====
+
+                // Only do this if contact is active (supporting)
+                if (c.normalImpulse > 0.0f)
+                {
+                    // Tangential relative velocity is already tiny
+                    // Kill it explicitly (Baumgarte-style velocity fix)
+
+                    glm::vec3 vT = vRelT;  // already very small
+
+                    // Compute effective mass along tangent
+                    glm::vec3 t = glm::normalize(vT + glm::vec3(1e-8f));
+
+                    glm::vec3 rtA = glm::cross(ra, t);
+                    glm::vec3 rtB = glm::cross(rb, t);
+
+                    float denom =
+                        rbA->invMass + rbB->invMass +
+                        glm::dot(
+                            t,
+                            glm::cross(rbA->getInvInertiaTensorWorld() * rtA, ra) +
+                            glm::cross(rbB->getInvInertiaTensorWorld() * rtB, rb)
+                        );
+
+                    if (denom > 1e-6f)
+                    {
+                        float jt = -glm::dot(vRel, t) / denom;
+
+                        glm::vec3 impulse = jt * t;
+
+                        if (!rbA->isStatic)
+                            rbA->applyImpulse(-impulse, c.position);
+                        if (!rbB->isStatic)
+                            rbB->applyImpulse( impulse, c.position);
+                    }
+                }
             }
         }
     }

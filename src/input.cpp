@@ -9,6 +9,9 @@
 void handleInput(App& app) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+
+        ImGui_ImplSDL2_ProcessEvent(&event);
+
         if (event.type == SDL_WINDOWEVENT &&
         event.window.event == SDL_WINDOWEVENT_RESIZED) {
 
@@ -22,6 +25,11 @@ void handleInput(App& app) {
                     cam->projDirty = true;
                 }
             }
+        }
+        
+        if(event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_TAB){
+            app.relativeMouseMode = !app.relativeMouseMode;
+            SDL_SetRelativeMouseMode(app.relativeMouseMode ? SDL_TRUE : SDL_FALSE);
         }
     }
     const Uint8* keys = SDL_GetKeyboardState(nullptr);

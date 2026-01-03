@@ -14,11 +14,10 @@ glm::mat4 Camera::getView() const {
     const Transform* t = owner->transform;
 
     glm::vec3 position = t->position;
-    glm::quat rotation = t->rotation;
 
     // Camera looks down -Z in OpenGL
-    glm::vec3 forward = rotation * glm::vec3(0, 0, -1);
-    glm::vec3 up      = rotation * glm::vec3(0, 1,  0);
+    glm::vec3 forward = t->forward();
+    glm::vec3 up      = t->up();
 
     view = glm::lookAt(position, position + forward, up);
     viewDirty = false;
@@ -29,7 +28,7 @@ glm::mat4 Camera::getProjection() const {
     if (!projDirty)
         return projection;
 
-    App app = App::instance();
+    App& app = App::instance();
     float aspect = float(app.width)/float(app.height);
 
     if (orthographic) {

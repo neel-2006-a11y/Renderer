@@ -3,6 +3,10 @@
 #include "ModelData.h"
 #include "GPUModel.h"
 #include "camera.h"
+#include "DirectionalLight.h"
+#include "ShadowMap.h"
+#include "Object.h"
+#include "shader.h"
 
 class Renderer {
 public:
@@ -10,6 +14,7 @@ public:
     void drawModel(GPUModel* model);
 
     void beginFrame(const Camera& camera);
+    void renderShadowMap(DirectionalLight* light, ShadowMap& shadowMap, const std::vector<Object*>& objects, Shader* shadowShader);
 
 private:
     GPUMesh uploadMesh(const MeshData& mesh);

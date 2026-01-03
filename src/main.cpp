@@ -17,6 +17,12 @@
 #include "AssetManager.h"
 #include "Renderer.h"
 #include "CameraController.h"
+#include "DirectionalLight.h"
+#include "ShadowMap.h"
+#include "helpers.h"
+#include "cameraHelpers.h"
+#include "app.h"
+
 
 
 #include <imgui.h>
@@ -26,9 +32,6 @@
 #include "glad/glad.h"
 #include <iostream>
 
-void vec3out(glm::vec3 a){
-    std::cout << "(" << a.x << ", " << a.y << ", " << a.z << ")";
-}
 int main() {
     App& app = App::instance();
     AssetManager& assetManager = AssetManager::instance();
@@ -38,22 +41,23 @@ int main() {
         std::cerr << "unable to initialize\n";
     }
 
-    // shaders
+    // ===== shaders =====
     Shader* shader = new Shader("../src/shaders/vertex.glsl","../src/shaders/fragment.glsl");
-
-    // models loading
+    // Shader* shadowShader = new Shader("../src/shaders/Shadow.vert");
+    Shader* shadowShader = new Shader("../src/shaders/Shadow.vert", "../src/shaders/Shadow.frag");
+    // ===== models loading =====
     ModelHandle cubeHandle;
     cubeHandle.assetID = "builtin:cube"; 
 
-    // camera setup
+    // ===== camera setup =====
     Object* camObj = new Object();
     camObj->name = "camObj";
-    camObj->addComponent<Camera>();
+    Camera* camComp = camObj->addComponent<Camera>();
     camObj->addComponent<CameraController>();
     app.sceneObjects.push_back(camObj);
 
-    
-    // scene setup
+
+    // ===== scene setup =====
     Object* ground = new Object();
     ground->name = "Ground";
     ground->transform->position = glm::vec3(0.0f,-5.0f,0.0f);
@@ -62,14 +66,21 @@ int main() {
     ground->addComponent<CubeCollider>(glm::vec3(1.0f,1.0f,1.0f));
     Rigidbody* groundRB = ground->addComponent<Rigidbody>();
     groundRB->isStatic = true;
-    groundRB->mass = 100.0f;
+    groundRB->mass = 10000.0f;
     glm::mat3 groundInertia = computeInertiaTensorOBB(glm::vec3(50.0f,1.0f,50.0f), groundRB->mass);
     groundRB->inertiaTensorLocal = groundInertia;
     groundRB->start();
     app.sceneObjects.push_back(ground);
 
+    Object* box = new Object();
+    box->name = "box";
+    box->addComponent<MeshRenderer>(cubeHandle, shader);
+    box->transform->rotation = glm::quat(glm::vec3(45,45,90));
+    box->transform->scale = glm::vec3(4,0.02,0.02);
+    box->transform->position = glm::vec3(15,-3.5,15);
+    app.sceneObjects.push_back(box);
 
-    int num_boxes = 1000;
+    int num_boxes = 100;
     for(int i = 0; i<num_boxes; i++){
         Object* boxObj = new Object();
         boxObj->name = "BoxObject_" + std::to_string(i);
@@ -96,6 +107,7 @@ int main() {
         app.sceneObjects.push_back(boxObj);
     }
 
+    // ===== ligths =====
     Object* light1 = new Object();
     light1->name = "Light1";
     auto pointLight = light1->addComponent<PointLight>();
@@ -104,11 +116,22 @@ int main() {
     light1->transform->position = glm::vec3(2.0f,2.0f,2.0f);
     app.sceneObjects.push_back(light1);
 
-    // shader config
+    Object* mainLight = new Object();
+    mainLight->name = "mainLight";
+    DirectionalLight* dirLight = mainLight->addComponent<DirectionalLight>();
+    // dirLight->shadowSize = 200.0f;
+    ShadowMap mainShadowMap;
+    mainShadowMap.resolution = 8192;
+    mainShadowMap.init(mainShadowMap.resolution);
+    mainLight->transform->rotation = glm::quat(glm::vec3(-45,0,0));
+    app.sceneObjects.push_back(mainLight);
+    
+
+    // ===== shader config =====
     shader->use();
-    int toonBands = 64;
-    int colorBands = 64;
-    float ambientLightIntensity = 10.0f;
+    int toonBands = 255;
+    int colorBands = 255;
+    float ambientLightIntensity = 0.2f;
     bool useBlinn = true;
     float shininess = 10.0f;
     shader->setInt("toonBands", toonBands);
@@ -117,7 +140,7 @@ int main() {
     shader->setBool("useBlinn", useBlinn);
     shader->setFloat("shininess", shininess);
     
-    // Setup ImGui context
+    // ===== Setup ImGui context =====
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -129,7 +152,7 @@ int main() {
     float prevTime = 0.0f;
 
 
-    // add colliders for sweep and prune
+    // ===== add colliders for sweep and prune =====
     AABBSorter aabb_sorter(AABBSorter::X);
     for(auto obj: app.sceneObjects){
         if(auto col = obj->getComponent<CubeCollider>()){
@@ -157,6 +180,7 @@ int main() {
         ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
         ImGui::End();
         drawEditorUI(app);
+        // ImGui::DragFloat("shadowSize", &dirLight->shadowSize, 0.1f);
 
         // collision detection and response
         aabb_sorter.update();
@@ -165,7 +189,7 @@ int main() {
 
         // std::cout << "FLAG2\n";
         for(auto p : colliders){
-            resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5, 1);
+            resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5, 4);
         }
 
         // get active camera
@@ -176,25 +200,36 @@ int main() {
                 break;
             }
         }
+
         if(!activeCamera){
             std::cerr << "no active camera\n";
             return 0;
         }
 
+        // frustrum matching
+        // std::vector<glm::vec3> frustumCorners = getCameraFrustumCorners(*activeCamera);
+        // dirLight->updateLightMatrices(frustumCorners);
+
         // handle input 
         handleInput(app);
-        // std::cout << app.running << "\n";
-        // Rendering
+        handleResize(app);
 
+
+        // ===== Rendering =====
+
+        // ===== render shadowMap =====
+        glm::vec3 sceneCenter = glm::vec3(0);
+        mainLight->getComponent<DirectionalLight>()->updateLightMatrices(sceneCenter);
+
+        renderer.renderShadowMap(mainLight->getComponent<DirectionalLight>(), mainShadowMap, app.sceneObjects, shadowShader);
+        uploadDirectionalLight(shader, mainLight->getComponent<DirectionalLight>(), &mainShadowMap);
+        // uploadLights(shader, app);
         // ===== per-frame clear =====
+        glViewport(0,0,app.width, app.height);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        uploadLights(shader, app);
-        
-
-        // std::cout << "FLAG3\n";
         for(auto& obj : app.sceneObjects){
             if(auto mr = obj->getComponent<MeshRenderer>()){
                 mr->shader->use();
@@ -206,25 +241,28 @@ int main() {
                 mr->shader->setMat4("view", &view[0][0]);
                 mr->shader->setMat4("projection", &proj[0][0]);
                 mr->shader->setMat4("model", &model[0][0]);
+                mr->shader->setVec3("viewPos", activeCamera->owner->transform->position);
                 renderer.drawModel(gpuModel);
             }
         }
 
-        // std::cout << "FLAG4\n";
         for(auto& obj : app.sceneObjects){
             obj->update(deltaTime);
         }
-        // std::cout << "FLAG5\n";
+
         // Render ImGui UI
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        // std::cout << "FLAG6\n";
         SDL_GL_SwapWindow(app.window);
-        // std::cout << "FLAG7\n";
     }
 
     delete shader;
     shader = nullptr;
+    delete shadowShader;
+    shadowShader = nullptr;
+
+    mainShadowMap.destroy();
+
     for(auto o : app.sceneObjects)delete o;
     app.sceneObjects.clear();
 

@@ -5,8 +5,8 @@
 class Camera : public Component {
 public:
     float fovY = 60.0f;          // degrees
-    float nearPlane = 0.1f;
-    float farPlane  = 1000.0f;
+    float nearPlane = 0.4f;
+    float farPlane  = 70.0f;
 
     bool orthographic = false;
     float orthoHeight = 10.0f;

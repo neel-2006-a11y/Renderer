@@ -9,23 +9,30 @@ out vec3 vertexColor;
 out vec3 fragPos;
 out vec3 normal;
 out vec2 texCoord;
+out vec4 fragPosLightSpace;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 lightVP;
+
+uniform bool useDirectionalLight;
 
 void main()
 {
-    // Transform the vertex position into world space
-    fragPos = vec3(model * vec4(aPos, 1.0));
 
     // Compute the normal in world space
-    normal = mat3(transpose(inverse(model))) * aNormal;
+    normal = normalize(mat3(transpose(inverse(model))) * aNormal);
 
     // Pass color and texCoord to the fragment shader
     vertexColor = aColor;
     texCoord = aTexCoord;
 
-    // Final clip-space position
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    vec4 worldPos = model * vec4(aPos,1.0);
+
+    fragPos = worldPos.xyz;
+
+    fragPosLightSpace = lightVP * worldPos;
+
+    gl_Position = projection * view * worldPos;
 }

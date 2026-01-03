@@ -2,6 +2,7 @@
 #include "Object.h"
 #include "transform.h"
 #include "camera.h"
+#include "app.h"
 
 #include <SDL2/SDL.h>
 #include <glm/gtc/quaternion.hpp>
@@ -40,7 +41,7 @@ void CameraController::handleKeyboard(float dt) {
 
     glm::vec3 forward = t->forward();
     glm::vec3 right   = t->right();
-    glm::vec3 up      = glm::vec3(0,1,0);
+    glm::vec3 up      = t->up();
 
     if (keys[SDL_SCANCODE_W]) t->position += forward * speed * dt;
     if (keys[SDL_SCANCODE_S]) t->position -= forward * speed * dt;
@@ -51,6 +52,9 @@ void CameraController::handleKeyboard(float dt) {
 }
 
 void CameraController::handleMouse() {
+    App& app = App::instance();
+    if(!app.relativeMouseMode)return;
+    
     int dx, dy;
     SDL_GetRelativeMouseState(&dx, &dy);
 
