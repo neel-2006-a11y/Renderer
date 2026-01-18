@@ -4,6 +4,7 @@
 #include "GPUModel.h"
 #include "camera.h"
 #include "DirectionalLight.h"
+#include "DirectionalLightCSM.h"
 #include "ShadowMap.h"
 #include "Object.h"
 #include "shader.h"
@@ -15,7 +16,7 @@ public:
 
     void beginFrame(const Camera& camera);
     void renderShadowMap(DirectionalLight* light, ShadowMap& shadowMap, const std::vector<Object*>& objects, Shader* shadowShader);
-
+    void renderShadowMap(DirectionalLightCSM* light, ShadowMap& shadowMap, const std::vector<Object*>& objects, Shader* shadowShader, int cascadeIndex);
 private:
     GPUMesh uploadMesh(const MeshData& mesh);
 

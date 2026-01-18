@@ -107,6 +107,36 @@ void Renderer::renderShadowMap(DirectionalLight* light, ShadowMap& shadowMap,con
     glDisable(GL_POLYGON_OFFSET_FILL);
 }
 
+void Renderer::renderShadowMap(DirectionalLightCSM* light, ShadowMap& shadowMap, const std::vector<Object*>& objects, Shader* shadowShader, int cascadeIndex) {
+    if(!light->castShadows) return;
+
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.5f, 4.0f);
+    glViewport(0, 0, shadowMap.resolution, shadowMap.resolution);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowMap.fbo);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    shadowShader->use();
+    shadowShader->setMat4("lightVP", &light->cascades[cascadeIndex].lightVP[0][0]);
+    AssetManager& assetManager = AssetManager::instance();
+    for(auto obj:objects){
+        if(auto mr = obj->getComponent<MeshRenderer>()){
+            ModelData* modelData = assetManager.getModel(mr->model.assetID);
+            GPUModel* gpuModel = getGPUModel(modelData);
+            glm::mat4 model = obj->transform->getMatrix();
+            shadowShader->setMat4("model", &model[0][0]);
+            drawModel(gpuModel);
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    App& app = App::instance();
+    glViewport(0,0,app.width, app.height);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+}
+
 void Renderer::beginFrame(const Camera& camera){
     glm::mat4 VP = camera.getProjection() * camera.getView();
 }

@@ -506,6 +506,8 @@ void resolveCubeCubeCollision(
     // ======= position correction =====
     glm::vec3 correction = contact.normal * contact.penetration;
     float extent = 0.7;
+    if(rbA->isStatic || rbB->isStatic) extent = 1.0f;
+    
     if(!rbA->isStatic)
         rbA->transform->position -= correction*extent;
     if(!rbB->isStatic)
@@ -586,7 +588,7 @@ void resolveCubeCubeCollision(
 
             glm::vec3 vRelT = vRel - n * vRelN;
             float vtLen2 = glm::dot(vRelT,vRelT);
-            float EPS = 1e-8f;
+            float EPS = 1e-4f;
             // float EPS = 0.0f;
             if(vtLen2>EPS){
                 glm::vec3 t = vRelT / sqrt(vtLen2); // stable normalize

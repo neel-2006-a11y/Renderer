@@ -56,8 +56,8 @@ MeshData makeCube(float size) {
     }
 
     // indices (two triangles per face)
-    for (uint i = 0; i < 6; i++) {
-        uint start = i * 4;
+    for (unsigned int i = 0; i < 6; i++) {
+        unsigned int start = i * 4;
         mesh.indices.insert(mesh.indices.end(), {
             start, start + 1, start + 2,
             start, start + 2, start + 3

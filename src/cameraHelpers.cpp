@@ -1,5 +1,5 @@
 #include "cameraHelpers.h"
-
+#include "app.h"
 std::vector<glm::vec3> getCameraFrustumCorners(const Camera& cam) {
     std::vector<glm::vec3> corners;
     glm::mat4 invVP = glm::inverse(cam.getVP());
@@ -22,4 +22,29 @@ std::vector<glm::vec3> getCameraFrustumCorners(const Camera& cam) {
     }
 
     return corners;
+}
+
+void getCameraFrustumCorners(const Camera& cam, float nearPlane, float farPlane, std::vector<glm::vec3>& outCorners) {
+    outCorners.clear();
+    App& app = App::instance();
+    float aspectRatio = static_cast<float>(app.width) / static_cast<float>(app.height);
+    glm::mat4 proj = glm::perspective(
+        glm::radians(cam.fovY),
+        aspectRatio,
+        nearPlane,
+        farPlane
+    );
+    glm::mat4 invVP = glm::inverse(proj * cam.getView());
+
+    const glm::vec4 ndcCorners[8] = {
+        {-1, -1, -1, 1}, { 1, -1, -1, 1},
+        { 1,  1, -1, 1}, {-1,  1, -1, 1},
+        {-1, -1,  1, 1}, { 1, -1,  1, 1},
+        { 1,  1,  1, 1}, {-1,  1,  1, 1},
+    };
+
+    for (const auto& c : ndcCorners) {
+        glm::vec4 world = invVP * c;
+        outCorners.push_back(glm::vec3(world) / world.w);
+    }
 }

@@ -22,8 +22,8 @@ ModelData* AssetManager::getModel(const std::string& assetID) {
     AssetLoader& al = AssetLoader::instance();
     if (isBuiltin(assetID))
         model = al.loadBuiltin(assetID);
-    else
-        model = al.loadBuiltin(assetID);
+    // else
+        // model = al.loadBuiltin(assetID);
 
     model->assetID = assetID;
     modelCache[assetID] = model;

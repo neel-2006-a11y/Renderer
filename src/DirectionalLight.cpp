@@ -10,7 +10,7 @@ void DirectionalLight::updateLightMatrices(const glm::vec3& sceneCenter) {
     glm::vec3 dir = glm::normalize(getDirection());
 
 
-    glm::vec3 lightPos = sceneCenter - dir * 100.0f;
+    glm::vec3 lightPos = sceneCenter - dir * 1.0f;
 
     glm::vec3 up = owner->transform->up();
     lightView = glm::lookAt(
@@ -39,7 +39,7 @@ void DirectionalLight::updateLightMatrices(const std::vector<glm::vec3>& frustum
     }
     frustumCenter /= static_cast<float>(frustumCorners.size());
 
-    glm::vec3 lightPos = frustumCenter - dir * shadowFar;
+    glm::vec3 lightPos = frustumCenter - dir * 1.0f;
 
     glm::vec3 up = owner->transform->up();
     // glm::vec3 up = glm::vec3(1.0f, 0.0f, 0.0f);

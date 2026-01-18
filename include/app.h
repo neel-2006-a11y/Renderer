@@ -3,6 +3,7 @@
 #include "Object.h"
 #include "shader.h"
 #include "DirectionalLight.h"
+#include "DirectionalLightCSM.h"
 #include "ShadowMap.h"
 
 class App {
@@ -22,3 +23,4 @@ void uploadLights(Shader* shader, App& app);
 void drawEditorUI(App& app);
 void handleResize(App& app);
 void uploadDirectionalLight(Shader* shader, DirectionalLight* light, ShadowMap* shadowMap);
+void uploadDirectionalLightCSM(Shader* shader, DirectionalLightCSM* light, ShadowMap shadowMaps[]);

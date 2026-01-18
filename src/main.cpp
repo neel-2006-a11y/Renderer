@@ -3,7 +3,7 @@
 #include "init.h"
 #include "transform.h"
 #include "input.h"
-#include "texture.h"
+#include "texture.h" 
 #include "rigidbody.h"
 #include "MeshRenderer.h"
 #include "CubeCollider.h"
@@ -19,18 +19,20 @@
 #include "CameraController.h"
 #include "DirectionalLight.h"
 #include "ShadowMap.h"
-#include "helpers.h"
 #include "cameraHelpers.h"
 #include "app.h"
 
 
 
-#include <imgui.h>
-#include <backends/imgui_impl_sdl2.h>
-#include <backends/imgui_impl_opengl3.h>
+#include "imgui.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "backends/imgui_impl_opengl3.h"
 #include "SDL2/SDL.h"
 #include "glad/glad.h"
 #include <iostream>
+
+
+#include "Boid.h"
 
 int main() {
     App& app = App::instance();
@@ -42,10 +44,10 @@ int main() {
     }
 
     // ===== shaders =====
-    Shader* shader = new Shader("../src/shaders/vertex.glsl","../src/shaders/fragment.glsl");
-    // Shader* shadowShader = new Shader("../src/shaders/Shadow.vert");
+    // Shader* shader = new Shader("../src/shaders/vertex.glsl","../src/shaders/fragment.glsl");
+    Shader* shader = new Shader("../src/shaders/vertexCSM.glsl","../src/shaders/fragmentCSM.glsl");
     Shader* shadowShader = new Shader("../src/shaders/Shadow.vert", "../src/shaders/Shadow.frag");
-    // ===== models loading =====
+    // ===== models =====
     ModelHandle cubeHandle;
     cubeHandle.assetID = "builtin:cube"; 
 
@@ -55,7 +57,7 @@ int main() {
     Camera* camComp = camObj->addComponent<Camera>();
     camObj->addComponent<CameraController>();
     app.sceneObjects.push_back(camObj);
-
+    std::cout << "camera forward: " << camObj->transform->forward().x << ", " << camObj->transform->forward().y << ", " << camObj->transform->forward().z << std::endl;
 
     // ===== scene setup =====
     Object* ground = new Object();
@@ -89,11 +91,6 @@ int main() {
             static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/5.0f)) + 10.0f,
             static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/50.0f))-25
         );
-        // boxObj->transform->rotation = glm::quat(glm::vec3(
-        //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f))),
-        //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f))),
-        //     glm::radians(static_cast <float> (rand()) / (static_cast <float> (RAND_MAX/360.0f)))
-        // ));
         boxObj->addComponent<MeshRenderer>(cubeHandle, shader);
         CubeCollider* boxCol = boxObj->addComponent<CubeCollider>(glm::vec3(1.0f));
         float mass = 1.0f;
@@ -116,17 +113,23 @@ int main() {
     light1->transform->position = glm::vec3(2.0f,2.0f,2.0f);
     app.sceneObjects.push_back(light1);
 
-    Object* mainLight = new Object();
-    mainLight->name = "mainLight";
-    DirectionalLight* dirLight = mainLight->addComponent<DirectionalLight>();
-    // dirLight->shadowSize = 200.0f;
-    ShadowMap mainShadowMap;
-    mainShadowMap.resolution = 8192;
-    mainShadowMap.init(mainShadowMap.resolution);
-    mainLight->transform->rotation = glm::quat(glm::vec3(-45,0,0));
-    app.sceneObjects.push_back(mainLight);
-    
+    Object* mainLight2 = new Object();
+    mainLight2->name = "mainLight2";
+    DirectionalLightCSM* dirLight2 = mainLight2->addComponent<DirectionalLightCSM>();
+    dirLight2->intensity = 0.4f;
+    mainLight2->transform->rotation = glm::quat(glm::vec3(-45,0,0));
+    app.sceneObjects.push_back(mainLight2);
+    ShadowMap cascadeShadowMaps[DirectionalLightCSM::NUM_CASCADES];
+    for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+        if(i==0)
+            cascadeShadowMaps[i].resolution = 4096;
+        else
+            cascadeShadowMaps[i].resolution = 1024;
+        cascadeShadowMaps[i].init(cascadeShadowMaps[i].resolution);
+    }
 
+
+    
     // ===== shader config =====
     shader->use();
     int toonBands = 255;
@@ -161,7 +164,11 @@ int main() {
     }
     aabb_sorter.update();
 
-    // std::cout << "FLAG1\n";
+
+
+
+    // ===== Boid setup =====
+    
 
 
     // ===== main loop =====
@@ -175,73 +182,54 @@ int main() {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
-
-        ImGui::Begin("Debug Panel");
-        ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
+        
         drawEditorUI(app);
-        // ImGui::DragFloat("shadowSize", &dirLight->shadowSize, 0.1f);
 
         // collision detection and response
         aabb_sorter.update();
         std::vector<std::pair<Collider*, Collider*>> colliders;
         aabb_sorter.computePairs(colliders);
 
-        // std::cout << "FLAG2\n";
         for(auto p : colliders){
             resolveCubeCubeCollision(*(CubeCollider*)(p.first),*(CubeCollider*)(p.second),0.5, 4);
         }
-
-        // get active camera
-        Camera* activeCamera = nullptr;
-        for(auto& obj : app.sceneObjects){
-            activeCamera = obj->getComponent<Camera>();
-            if(activeCamera != nullptr){
-                break;
-            }
-        }
-
-        if(!activeCamera){
-            std::cerr << "no active camera\n";
-            return 0;
-        }
-
-        // frustrum matching
-        // std::vector<glm::vec3> frustumCorners = getCameraFrustumCorners(*activeCamera);
-        // dirLight->updateLightMatrices(frustumCorners);
 
         // handle input 
         handleInput(app);
         handleResize(app);
 
-
         // ===== Rendering =====
 
         // ===== render shadowMap =====
-        glm::vec3 sceneCenter = glm::vec3(0);
-        mainLight->getComponent<DirectionalLight>()->updateLightMatrices(sceneCenter);
+        /////////////////?//////////////
+        computeCascadeSplits(*mainLight2->getComponent<DirectionalLightCSM>(), camComp->nearPlane, camComp->farPlane);
+        updateCascadeLightMatrices(*mainLight2->getComponent<DirectionalLightCSM>(), *camComp);
 
-        renderer.renderShadowMap(mainLight->getComponent<DirectionalLight>(), mainShadowMap, app.sceneObjects, shadowShader);
-        uploadDirectionalLight(shader, mainLight->getComponent<DirectionalLight>(), &mainShadowMap);
-        // uploadLights(shader, app);
+        for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+            renderer.renderShadowMap(mainLight2->getComponent<DirectionalLightCSM>(), cascadeShadowMaps[i], app.sceneObjects, shadowShader, i);
+        }
+        uploadDirectionalLightCSM(shader, mainLight2->getComponent<DirectionalLightCSM>(), cascadeShadowMaps);
+        uploadLights(shader, app);
+        
         // ===== per-frame clear =====
         glViewport(0,0,app.width, app.height);
         glEnable(GL_DEPTH_TEST);
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // ===== render scene =====
         for(auto& obj : app.sceneObjects){
             if(auto mr = obj->getComponent<MeshRenderer>()){
                 mr->shader->use();
                 ModelData* modelData = assetManager.getModel(mr->model.assetID);
                 GPUModel* gpuModel = renderer.getGPUModel(modelData);
-                glm::mat4 view = activeCamera->getView();
-                glm::mat4 proj = activeCamera->getProjection();
+                glm::mat4 view = camComp->getView();
+                glm::mat4 proj = camComp->getProjection();
                 glm::mat4 model = mr->owner->transform->getMatrix();
                 mr->shader->setMat4("view", &view[0][0]);
                 mr->shader->setMat4("projection", &proj[0][0]);
                 mr->shader->setMat4("model", &model[0][0]);
-                mr->shader->setVec3("viewPos", activeCamera->owner->transform->position);
+                mr->shader->setVec3("viewPos", camComp->owner->transform->position);
                 renderer.drawModel(gpuModel);
             }
         }
@@ -250,18 +238,21 @@ int main() {
             obj->update(deltaTime);
         }
 
-        // Render ImGui UI
+        // ===== Render ImGui UI =====
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(app.window);
     }
-
+    
+    // ===== cleanup =====
     delete shader;
     shader = nullptr;
     delete shadowShader;
     shadowShader = nullptr;
 
-    mainShadowMap.destroy();
+    for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+        cascadeShadowMaps[i].destroy();
+    }
 
     for(auto o : app.sceneObjects)delete o;
     app.sceneObjects.clear();

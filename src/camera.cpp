@@ -17,10 +17,10 @@ glm::mat4 Camera::getView() const {
 
     // Camera looks down -Z in OpenGL
     glm::vec3 forward = t->forward();
-    glm::vec3 up      = t->up();
+    glm::vec3 up = t->up();
 
     view = glm::lookAt(position, position + forward, up);
-    viewDirty = false;
+    // viewDirty = false;
     return view;
 }
 
@@ -49,7 +49,8 @@ glm::mat4 Camera::getProjection() const {
         );
     }
 
-    projDirty = false;
+    // debug
+    // projDirty = false;
     return projection;
 }
 

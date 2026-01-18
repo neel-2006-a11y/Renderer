@@ -37,6 +37,8 @@ target_include_directories(renderer PRIVATE
     external/glad/include
     external/imgui
     external/imgui/backends
+
+    include/Boid
 )
 
 # ========= Link libraries =========

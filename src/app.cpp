@@ -15,6 +15,12 @@ App& App::instance(){
 }
 
 void drawEditorUI(App& app) {
+
+    ImGui::Begin("Debug Panel");
+        ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        ImGui::End();
+
+        
     ImGui::Begin("Scene Editor");
 
     static int selectedModel = 0;
@@ -38,9 +44,9 @@ void drawEditorUI(App& app) {
         ImGui::Text("Transform");
         ImGui::DragFloat3("Position", &object->transform->position[0], 0.1f);
 
-        glm::vec3 euler = glm::degrees(glm::eulerAngles(object->transform->rotation));
-        ImGui::DragFloat3("Rotation", &euler[0], 0.1f);
-        object->transform->rotation = glm::quat(glm::radians(euler));
+        // glm::vec3 euler = glm::degrees(glm::eulerAngles(object->transform->rotation));
+        // ImGui::DragFloat3("Rotation", &euler[0], 0.1f);
+        // object->transform->rotation = glm::quat(glm::radians(euler));
         ImGui::DragFloat3("Scale", &object->transform->scale[0], 0.1f);
     }
 
@@ -105,4 +111,34 @@ void uploadDirectionalLight(Shader* shader, DirectionalLight* light, ShadowMap* 
     shader->setMat4("lightVP", &lightVP[0][0]);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, shadowMap->depthTexture);
+}
+
+void uploadDirectionalLightCSM(Shader* shader, DirectionalLightCSM* lightCSM, ShadowMap shadowMaps[]){
+    shader->use();
+    shader->setVec3("dirLight.direction", lightCSM->getDirection());
+    shader->setVec3("dirLight.color", lightCSM->color);
+    shader->setFloat("dirLight.intensity", lightCSM->intensity);
+    shader->setInt("NUM_CASCADES", DirectionalLightCSM::NUM_CASCADES);
+    shader->setBool("useDirectionalLight", true);
+
+    glm::mat4 lightVPs[DirectionalLightCSM::NUM_CASCADES];
+    float cascadeSplits[DirectionalLightCSM::NUM_CASCADES];
+
+    // std::cout << "Cascade splits: ";
+    for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+        lightVPs[i] = lightCSM->cascades[i].lightVP;
+        cascadeSplits[i] = lightCSM->cascades[i].splitFar;
+
+    }
+
+    for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+        shader->setMat4("lightVPs[" + std::to_string(i) + "]", &lightVPs[i][0][0]);
+        shader->setFloat("cascadeSplits[" + std::to_string(i) + "]", cascadeSplits[i]);
+    }
+    // glActiveTexture(GL_TEXTURE1);
+    for(int i = 0; i < DirectionalLightCSM::NUM_CASCADES; i++){
+        glActiveTexture(GL_TEXTURE1 + i);
+        glBindTexture(GL_TEXTURE_2D, shadowMaps[i].depthTexture);
+        shader->setInt("shadowMaps[" + std::to_string(i) + "]", 1+i);
+    }
 }
