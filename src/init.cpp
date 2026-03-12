@@ -1,7 +1,6 @@
 #include "init.h"
 #include <iostream>
 #include <glad/glad.h>
-#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <backends/imgui_impl_sdl2.h>
 #include <backends/imgui_impl_opengl3.h>
